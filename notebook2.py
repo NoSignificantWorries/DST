@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.19.9"
-app = marimo.App(width="full", auto_download=["html"])
+app = marimo.App(width="full", auto_download=["html", "ipynb"])
 
 
 @app.cell
@@ -16,9 +16,9 @@ def _():
 @app.cell
 def _(Callable, np):
     def integrate(func: Callable, a: float, b: float, n: int = 1000) -> float:
-            x = np.linspace(a, b, n)
-            y = func(x)
-            return np.trapezoid(y, x)
+        x = np.linspace(a, b, n)
+        y = func(x)
+        return np.trapezoid(y, x)
 
 
     class Function:
@@ -65,8 +65,9 @@ def _(Callable, np):
             def fourier_func(t):
                 result = a_0 / 2
                 for n in range(1, self.N_harmonics + 1):
-                    result += coeffs_a[n-1] * np.cos(n * omega * t) + \
-                              coeffs_b[n-1] * np.sin(n * omega * t)
+                    result += coeffs_a[n - 1] * np.cos(n * omega * t) + coeffs_b[
+                        n - 1
+                    ] * np.sin(n * omega * t)
                 return result
 
             print("an:", list(map(lambda x: round(float(x), 6), coeffs_a)))
@@ -85,13 +86,11 @@ def _(Callable, np):
             amplitude_spectrum = 2 * np.abs(fft_result) / N
             amplitude_spectrum[0] /= 2
 
-
             positive_freq_indices = frequencies >= 0
             frequencies = frequencies[positive_freq_indices]
             amplitude_spectrum = amplitude_spectrum[positive_freq_indices]
 
             return frequencies, amplitude_spectrum
-
 
     return FourierSeries, Function
 
@@ -102,6 +101,7 @@ def _(Callable, np):
         def func(t):
             phase = (t % T) / T
             return np.where(phase < 0.5, 1.0, -1.0)
+
         return func
 
     return (period_func,)
@@ -120,22 +120,28 @@ def _(FourierSeries, Function, np, period_func, plt):
     y_fourier = fourier_approx(X)
 
     freq, ampl_spec = signal.get_spectrum(y_original)
-    harmonic_freqs_ = np.linspace(1, signal.N_harmonics, signal.N_harmonics) * signal.freq
+    harmonic_freqs_ = (
+        np.linspace(1, signal.N_harmonics, signal.N_harmonics) * signal.freq
+    )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 12))
 
-    axes[0].plot(X, y_original, 'b-', linewidth=2, label='Исходный сигнал', alpha=0.7)
-    axes[0].plot(X, y_fourier, 'r--', linewidth=2, label='Ряд Фурье (N=10)', alpha=0.9)
-    axes[0].set_ylabel('Амплитуда')
-    axes[0].set_title('Прямоугольный импульс и его разложение в ряд Фурье')
+    axes[0].plot(
+        X, y_original, "b-", linewidth=2, label="Исходный сигнал", alpha=0.7
+    )
+    axes[0].plot(
+        X, y_fourier, "r--", linewidth=2, label="Ряд Фурье (N=10)", alpha=0.9
+    )
+    axes[0].set_ylabel("Амплитуда")
+    axes[0].set_title("Прямоугольный импульс и его разложение в ряд Фурье")
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
 
     error = y_original - y_fourier
-    axes[1].plot(X, error, 'g-', linewidth=1, label='Ошибка')
-    axes[1].set_xlabel('Время')
-    axes[1].set_ylabel('Ошибка')
-    axes[1].set_title('Разность между исходной функцией и рядом Фурье')
+    axes[1].plot(X, error, "g-", linewidth=1, label="Ошибка")
+    axes[1].set_xlabel("Время")
+    axes[1].set_ylabel("Ошибка")
+    axes[1].set_title("Разность между исходной функцией и рядом Фурье")
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
 
@@ -144,9 +150,9 @@ def _(FourierSeries, Function, np, period_func, plt):
     axes[2].plot(harmonic_freqs_, bn_, "o", color="red")
 
     axes[2].plot(freq, ampl_spec, color="blue", label="Амплитудный спектр")
-    axes[2].set_xlabel('Частота')
-    axes[2].set_ylabel('Амплитуда')
-    axes[2].set_title('Спектр')
+    axes[2].set_xlabel("Частота")
+    axes[2].set_ylabel("Амплитуда")
+    axes[2].set_title("Спектр")
     axes[2].plot(harmonic_freqs_, an_, "o", color="orange", label="an")
     axes[2].plot(harmonic_freqs_, bn_, "o", color="red", label="bn")
     axes[2].legend()
@@ -161,8 +167,10 @@ def _(FourierSeries, Function, np, period_func, plt):
 def _(Callable, np):
     def period_func_sin(T: float, A: float) -> Callable:
         omega = 2 * np.pi / T
+
         def func(t):
             return A * np.cos(omega * t)
+
         return func
 
     return (period_func_sin,)
@@ -182,29 +190,48 @@ def _(FourierSeries, Function, np, period_func_sin, plt):
     y_fourier_sin = fourier_approx_sin(X_sin)
 
     freq_sin, ampl_spec_sin = signal_sin.get_spectrum(y_original_sin)
-    harmonic_freqs = np.linspace(1, signal_sin.N_harmonics, signal_sin.N_harmonics) * signal_sin.freq
+    harmonic_freqs = (
+        np.linspace(1, signal_sin.N_harmonics, signal_sin.N_harmonics)
+        * signal_sin.freq
+    )
 
     fig_sin, axes_sin = plt.subplots(3, 1, figsize=(12, 12))
 
-    axes_sin[0].plot(X_sin, y_original_sin, 'b-', linewidth=2, label='Исходный сигнал', alpha=0.7)
-    axes_sin[0].plot(X_sin, y_fourier_sin, 'r--', linewidth=2, label='Ряд Фурье (N=10)', alpha=0.9)
-    axes_sin[0].set_ylabel('Амплитуда')
-    axes_sin[0].set_title('Косинусоидальный импульс и его разложение в ряд Фурье')
+    axes_sin[0].plot(
+        X_sin,
+        y_original_sin,
+        "b-",
+        linewidth=2,
+        label="Исходный сигнал",
+        alpha=0.7,
+    )
+    axes_sin[0].plot(
+        X_sin,
+        y_fourier_sin,
+        "r--",
+        linewidth=2,
+        label="Ряд Фурье (N=10)",
+        alpha=0.9,
+    )
+    axes_sin[0].set_ylabel("Амплитуда")
+    axes_sin[0].set_title("Косинусоидальный импульс и его разложение в ряд Фурье")
     axes_sin[0].legend()
     axes_sin[0].grid(True, alpha=0.3)
 
     error_sin = y_original_sin - y_fourier_sin
-    axes_sin[1].plot(X_sin, error_sin, 'g-', linewidth=1, label='Ошибка')
-    axes_sin[1].set_xlabel('Время')
-    axes_sin[1].set_ylabel('Ошибка')
-    axes_sin[1].set_title('Разность между исходной функцией и рядом Фурье')
+    axes_sin[1].plot(X_sin, error_sin, "g-", linewidth=1, label="Ошибка")
+    axes_sin[1].set_xlabel("Время")
+    axes_sin[1].set_ylabel("Ошибка")
+    axes_sin[1].set_title("Разность между исходной функцией и рядом Фурье")
     axes_sin[1].legend()
     axes_sin[1].grid(True, alpha=0.3)
 
-    axes_sin[2].plot(freq_sin, ampl_spec_sin, color="blue", label="Амплитудный спектр")
-    axes_sin[2].set_xlabel('Частота')
-    axes_sin[2].set_ylabel('Амплитуда')
-    axes_sin[2].set_title('Спектр')
+    axes_sin[2].plot(
+        freq_sin, ampl_spec_sin, color="blue", label="Амплитудный спектр"
+    )
+    axes_sin[2].set_xlabel("Частота")
+    axes_sin[2].set_ylabel("Амплитуда")
+    axes_sin[2].set_title("Спектр")
     axes_sin[2].plot(harmonic_freqs, an, "o", color="orange", label="an")
     axes_sin[2].plot(harmonic_freqs, bn, "o", color="red", label="bn")
     axes_sin[2].legend()
@@ -220,15 +247,15 @@ def _(np):
     def add_noise_to_function(original_func, noise_level=0.1, seed=None):
         if seed is not None:
             np.random.seed(seed)
-    
+
         def noisy_func(t):
             t_array = np.asarray(t)
             original_values = original_func(t_array)
 
             noise = np.random.normal(0, noise_level, t_array.shape)
-        
+
             return original_values + noise
-    
+
         return noisy_func
 
     return (add_noise_to_function,)
@@ -240,46 +267,52 @@ def _(FourierSeries, Function, add_noise_to_function, np, period_func, plt):
         T = 2
         f_x = Function(add_noise_to_function(period_func(T=T)), T=T)
         signal = FourierSeries(f_x)
-    
+
         fourier_approx, (_, an_, bn_) = signal.get_series()
-    
+
         X = np.linspace(0, 3 * T, 1000)
         y_original = signal(X)
         y_fourier = fourier_approx(X)
-    
+
         freq, ampl_spec = signal.get_spectrum(y_original)
-        harmonic_freqs_ = np.linspace(1, signal.N_harmonics, signal.N_harmonics) * signal.freq
-    
+        harmonic_freqs_ = (
+            np.linspace(1, signal.N_harmonics, signal.N_harmonics) * signal.freq
+        )
+
         fig, axes = plt.subplots(3, 1, figsize=(12, 12))
-    
-        axes[0].plot(X, y_original, 'b-', linewidth=2, label='Исходный сигнал', alpha=0.7)
-        axes[0].plot(X, y_fourier, 'r--', linewidth=2, label='Ряд Фурье (N=10)', alpha=0.9)
-        axes[0].set_ylabel('Амплитуда')
-        axes[0].set_title('Прямоугольный импульс и его разложение в ряд Фурье')
+
+        axes[0].plot(
+            X, y_original, "b-", linewidth=2, label="Исходный сигнал", alpha=0.7
+        )
+        axes[0].plot(
+            X, y_fourier, "r--", linewidth=2, label="Ряд Фурье (N=10)", alpha=0.9
+        )
+        axes[0].set_ylabel("Амплитуда")
+        axes[0].set_title("Прямоугольный импульс и его разложение в ряд Фурье")
         axes[0].legend()
         axes[0].grid(True, alpha=0.3)
-    
+
         error = y_original - y_fourier
-        axes[1].plot(X, error, 'g-', linewidth=1, label='Ошибка')
-        axes[1].set_xlabel('Время')
-        axes[1].set_ylabel('Ошибка')
-        axes[1].set_title('Разность между исходной функцией и рядом Фурье')
+        axes[1].plot(X, error, "g-", linewidth=1, label="Ошибка")
+        axes[1].set_xlabel("Время")
+        axes[1].set_ylabel("Ошибка")
+        axes[1].set_title("Разность между исходной функцией и рядом Фурье")
         axes[1].legend()
         axes[1].grid(True, alpha=0.3)
-    
+
         axes[2].plot(freq, ampl_spec)
         axes[2].plot(harmonic_freqs_, an_, "o", color="orange")
         axes[2].plot(harmonic_freqs_, bn_, "o", color="red")
-    
+
         axes[2].plot(freq, ampl_spec, color="blue", label="Амплитудный спектр")
-        axes[2].set_xlabel('Частота')
-        axes[2].set_ylabel('Амплитуда')
-        axes[2].set_title('Спектр')
+        axes[2].set_xlabel("Частота")
+        axes[2].set_ylabel("Амплитуда")
+        axes[2].set_title("Спектр")
         axes[2].plot(harmonic_freqs_, an_, "o", color="orange", label="an")
         axes[2].plot(harmonic_freqs_, bn_, "o", color="red", label="bn")
         axes[2].legend()
         axes[2].grid(True, alpha=0.3)
-    
+
         plt.tight_layout()
         plt.show()
 
@@ -300,46 +333,72 @@ def _(
     def stage5():
         T_sin = 2
         A_sin = 1
-        f_x_sin = Function(add_noise_to_function(period_func_sin(T=T_sin, A=A_sin)), T=T_sin, A=A_sin)
+        f_x_sin = Function(
+            add_noise_to_function(period_func_sin(T=T_sin, A=A_sin)),
+            T=T_sin,
+            A=A_sin,
+        )
         signal_sin = FourierSeries(f_x_sin)
-    
+
         fourier_approx_sin, (_, an, bn) = signal_sin.get_series()
-    
+
         X_sin = np.linspace(0, 3 * T_sin, 1000)
         y_original_sin = signal_sin(X_sin)
         y_fourier_sin = fourier_approx_sin(X_sin)
-    
+
         freq_sin, ampl_spec_sin = signal_sin.get_spectrum(y_original_sin)
-        harmonic_freqs = np.linspace(1, signal_sin.N_harmonics, signal_sin.N_harmonics) * signal_sin.freq
-    
+        harmonic_freqs = (
+            np.linspace(1, signal_sin.N_harmonics, signal_sin.N_harmonics)
+            * signal_sin.freq
+        )
+
         fig_sin, axes_sin = plt.subplots(3, 1, figsize=(12, 12))
-    
-        axes_sin[0].plot(X_sin, y_original_sin, 'b-', linewidth=2, label='Исходный сигнал', alpha=0.7)
-        axes_sin[0].plot(X_sin, y_fourier_sin, 'r--', linewidth=2, label='Ряд Фурье (N=10)', alpha=0.9)
-        axes_sin[0].set_ylabel('Амплитуда')
-        axes_sin[0].set_title('Косинусоидальный импульс и его разложение в ряд Фурье')
+
+        axes_sin[0].plot(
+            X_sin,
+            y_original_sin,
+            "b-",
+            linewidth=2,
+            label="Исходный сигнал",
+            alpha=0.7,
+        )
+        axes_sin[0].plot(
+            X_sin,
+            y_fourier_sin,
+            "r--",
+            linewidth=2,
+            label="Ряд Фурье (N=10)",
+            alpha=0.9,
+        )
+        axes_sin[0].set_ylabel("Амплитуда")
+        axes_sin[0].set_title(
+            "Косинусоидальный импульс и его разложение в ряд Фурье"
+        )
         axes_sin[0].legend()
         axes_sin[0].grid(True, alpha=0.3)
-    
+
         error_sin = y_original_sin - y_fourier_sin
-        axes_sin[1].plot(X_sin, error_sin, 'g-', linewidth=1, label='Ошибка')
-        axes_sin[1].set_xlabel('Время')
-        axes_sin[1].set_ylabel('Ошибка')
-        axes_sin[1].set_title('Разность между исходной функцией и рядом Фурье')
+        axes_sin[1].plot(X_sin, error_sin, "g-", linewidth=1, label="Ошибка")
+        axes_sin[1].set_xlabel("Время")
+        axes_sin[1].set_ylabel("Ошибка")
+        axes_sin[1].set_title("Разность между исходной функцией и рядом Фурье")
         axes_sin[1].legend()
         axes_sin[1].grid(True, alpha=0.3)
-    
-        axes_sin[2].plot(freq_sin, ampl_spec_sin, color="blue", label="Амплитудный спектр")
-        axes_sin[2].set_xlabel('Частота')
-        axes_sin[2].set_ylabel('Амплитуда')
-        axes_sin[2].set_title('Спектр')
+
+        axes_sin[2].plot(
+            freq_sin, ampl_spec_sin, color="blue", label="Амплитудный спектр"
+        )
+        axes_sin[2].set_xlabel("Частота")
+        axes_sin[2].set_ylabel("Амплитуда")
+        axes_sin[2].set_title("Спектр")
         axes_sin[2].plot(harmonic_freqs, an, "o", color="orange", label="an")
         axes_sin[2].plot(harmonic_freqs, bn, "o", color="red", label="bn")
         axes_sin[2].legend()
         axes_sin[2].grid(True, alpha=0.3)
-    
+
         plt.tight_layout()
         plt.show()
+
 
     stage5()
     return
