@@ -26,8 +26,8 @@ def _(np):
             self.signal = None
             self.sampling_rate = None
 
-        def make_signal(self, duration):
-            self.sampling_rate = 10 * self.params["max-freq"]
+        def make_signal(self, duration, sampling_rate_koeff=10):
+            self.sampling_rate = sampling_rate_koeff * self.params["max-freq"]
             n_points = int(duration * self.sampling_rate)
 
             self.x = np.linspace(0, duration, n_points)
@@ -38,38 +38,6 @@ def _(np):
         def add_white_noise(self):
             self.signal += np.random.normal(0, 0.5, len(self.signal))
             return self.signal
-
-        def fft_radix2_vectorized(self, x):
-            n = len(x)
-
-            if n & (n - 1) != 0:
-                raise ValueError("Длина сигнала должна быть степенью 2")
-
-            j = 0
-            for i in range(1, n):
-                bit = n >> 1
-                while j & bit:
-                    j ^= bit
-                    bit >>= 1
-                j ^= bit
-
-                if i < j:
-                    x[i], x[j] = x[j], x[i]
-
-            step = 1
-            while step < n:
-                w = np.exp(-2j * np.pi * np.arange(step) / (2 * step))
-
-                for start in range(0, n, 2 * step):
-                    even = x[start : start + step]
-                    odd = x[start + step : start + 2 * step]
-
-                    x[start : start + step] = even + w * odd
-                    x[start + step : start + 2 * step] = even - w * odd
-
-                step *= 2
-
-            return x
 
         def get_fft_spec(self):
             self.fft = np.fft.fft(self.signal)
@@ -85,8 +53,37 @@ def _(np):
 
             return freq_one_side, ampl_spec_one_side
 
+        def my_fft_spec(self):
+            x = self.signal.copy().astype(complex)
+            n = len(x)
+
+            j = 0
+            for i in range(1, n):
+                bit = n >> 1
+                while j & bit:
+                    j ^= bit
+                    bit >>= 1
+                j ^= bit
+
+                if i < j:
+                    x[i], x[j] = x[j], x[i]
+
+            step = 1
+            while step < n:
+                w = np.exp(-1j * np.pi * np.arange(step) / step)
+                for start in range(0, n, step * 2):
+                    even = x[start : start + step].copy()
+                    odd = x[start + step : start + step * 2].copy()
+                    t = w * odd
+                    x[start : start + step] = even + t
+                    x[start + step : start + 2 * step] = even - t
+
+                step *= 2
+
+            return x
+
         def get_my_fft_spec(self):
-            self.fft = self.fft_radix2_vectorized(self.signal.copy())
+            self.fft = self.my_fft_spec()
             n = len(self.signal)
 
             ampl_spec = np.abs(self.fft) / n
@@ -108,7 +105,6 @@ def _(np):
             n = len(self.signal)
             result = np.zeros(n, dtype=complex)
 
-            # Прямая формула DFT: X[k] = sum(x[n] * exp(-2πi * k * n / N))
             for k in range(n):
                 for i in range(n):
                     angle = 2 * np.pi * k * i / n
@@ -143,13 +139,13 @@ def _(np):
 
 
 @app.cell
-def _(Signal, cos_signal, plt, time):
+def _(Signal, cos_signal, np, plt, time):
     def stage1():
         signal, max_freq = cos_signal([1, 1], [50, 150])
         signal = Signal(signal, {"max-freq": max_freq})
 
-        duration = 2
-        x, y = signal.make_signal(duration)
+        duration = 1 / max_freq * 5
+        x, y = signal.make_signal(duration, 25)
 
         a = time.time()
         fft_freq, fft_spec = signal.get_fft_spec()
@@ -165,7 +161,16 @@ def _(Signal, cos_signal, plt, time):
         fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(16, 18))
 
         axes[0].set_title("Signal")
-        axes[0].plot(x, y, label="cos signal")
+        axes[0].plot(x, y, color="blue", label="cos signal")
+        axes[0].plot(
+            x, np.cos(2 * np.pi * 50 * x), linestyle="--", label="cos signal 50 Hz"
+        )
+        axes[0].plot(
+            x,
+            np.cos(2 * np.pi * 150 * x),
+            linestyle="--",
+            label="cos signal 150 Hz",
+        )
         axes[0].set_xlabel("Time")
         axes[0].set_ylabel("Value")
         axes[0].grid(True, alpha=0.3)
@@ -173,6 +178,8 @@ def _(Signal, cos_signal, plt, time):
 
         axes[1].set_title("fft")
         axes[1].plot(fft_freq, fft_spec, label="fft spectrum")
+        axes[1].axvline(x=50, linestyle="--", color="red")
+        axes[1].axvline(x=150, linestyle="--", color="red")
         axes[1].set_xlabel("Frequency")
         axes[1].set_ylabel("Amplitude")
         axes[1].grid(True, alpha=0.3)
@@ -180,6 +187,8 @@ def _(Signal, cos_signal, plt, time):
 
         axes[2].set_title("DFT slow")
         axes[2].plot(dft_freq, dft_spec, label="dst slow spectrum")
+        axes[2].axvline(x=50, linestyle="--", color="red")
+        axes[2].axvline(x=150, linestyle="--", color="red")
         axes[2].set_xlabel("Frequency")
         axes[2].set_ylabel("Amplitude")
         axes[2].grid(True, alpha=0.3)
@@ -207,8 +216,8 @@ def _(Signal, cos_signal, plt):
         signal, max_freq = cos_signal([1, 1], [50, 150])
         signal = Signal(signal, {"max-freq": max_freq})
 
-        duration = 2
-        x, y = signal.make_signal(duration)
+        duration = 1 / max_freq * 4
+        x, y = signal.make_signal(duration, 300)
 
         fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(16, 18))
 
@@ -233,6 +242,8 @@ def _(Signal, cos_signal, plt):
 
         axes[2].set_title("fft")
         axes[2].plot(fft_freq, fft_spec, label="fft spectrum")
+        axes[2].axvline(x=50, linestyle="--", color="red")
+        axes[2].axvline(x=150, linestyle="--", color="red")
         axes[2].set_xlabel("Frequency")
         axes[2].set_ylabel("Amplitude")
         axes[2].grid(True, alpha=0.3)
@@ -273,7 +284,7 @@ def _(Signal, period_func, plt):
         signal = Signal(signal, {"max-freq": max_freq})
 
         duration = 4
-        x, y = signal.make_signal(duration)
+        x, y = signal.make_signal(duration, 300)
 
         fig, axes = plt.subplots(nrows=5, ncols=1, figsize=(16, 24))
 
@@ -329,31 +340,56 @@ def _(Signal, period_func, plt):
 
 
 @app.cell
-def _(Signal, cos_signal, plt):
+def _(Signal, cos_signal, plt, time):
     def stage4():
         signal, max_freq = cos_signal([1], [50])
         signal = Signal(signal, {"max-freq": max_freq})
 
-        duration = 1024 / (10 * max_freq)
-        x, y = signal.make_signal(duration)
+        duration = 1024 / (30 * max_freq)
+        x, y = signal.make_signal(duration, 30)
 
-        fft_freq, fft_spec = signal.get_my_fft_spec()
+        a = time.time()
+        my_fft_freq, my_fft_spec = signal.get_my_fft_spec()
+        b = time.time()
+        print(b - a)
+        a = time.time()
+        fft_freq, fft_spec = signal.get_fft_spec()
+        b = time.time()
+        print(b - a)
 
-        fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(16, 12))
+        fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(16, 20))
 
         axes[0].set_title("Signal")
-        axes[0].plot(x, y, label="cos signal")
+        axes[0].plot(x, y, color="blue", label="cos signal")
         axes[0].set_xlabel("Time")
         axes[0].set_ylabel("Value")
         axes[0].grid(True, alpha=0.3)
         axes[0].legend()
 
-        axes[1].set_title("fft")
-        axes[1].plot(fft_freq, fft_spec, label="fft spectrum")
+        axes[1].set_title("my fft")
+        axes[1].plot(
+            my_fft_freq, my_fft_spec, color="blue", label="my fft spectrum"
+        )
         axes[1].set_xlabel("Frequency")
         axes[1].set_ylabel("Amplitude")
         axes[1].grid(True, alpha=0.3)
         axes[1].legend()
+
+        axes[2].set_title("numpy fft")
+        axes[2].plot(fft_freq, fft_spec, color="green", label="numpy fft spectrum")
+        axes[2].set_xlabel("Frequency")
+        axes[2].set_ylabel("Amplitude")
+        axes[2].grid(True, alpha=0.3)
+        axes[2].legend()
+
+        axes[3].set_title("fft error")
+        axes[3].plot(
+            fft_freq, fft_spec - my_fft_spec, color="orange", label="error"
+        )
+        axes[3].set_xlabel("Frequency")
+        axes[3].set_ylabel("Amplitude")
+        axes[3].grid(True, alpha=0.3)
+        axes[3].legend()
 
         fig.tight_layout()
 
