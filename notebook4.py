@@ -15,6 +15,24 @@ def _():
 
 @app.cell
 def _(np, signal):
+    def make_polinom(n):
+        if n == 0:
+            return lambda x: np.ones_like(x)
+        elif n == 1:
+            return lambda x: x
+
+        def func(x):
+            T_prev2 = np.ones_like(x)
+            T_prev1 = x.copy()
+            for i in range(2, n + 1):
+                T_curr = 2 * x * T_prev1 - T_prev2
+                T_prev2, T_prev1 = T_prev1, T_curr
+
+            return T_prev1
+
+        return func
+
+
     class Signal:
         def __init__(self, func, params):
             self.func = func
@@ -125,6 +143,16 @@ def _(np, signal):
 
         def notch_filter_2(self):
             return self.low_filter + self.high_filter
+
+        def chebyshev_filter(self, fc, n, Rp):
+            eps = np.sqrt(10 ** (Rp / 10) - 1)
+            Tn = make_polinom(n)
+            f_norm = self.freq / fc
+
+            filter = 1.0 / np.sqrt(1.0 + eps**2 * Tn(f_norm) ** 2)
+
+            self.low_filter = filter
+            return self.low_filter
 
         def apply_filter(self, fft_filter):
             self.fft *= fft_filter
@@ -944,6 +972,106 @@ def _(Signal, cos_signal, np, plt):
 
 
     stage8()
+    return
+
+
+@app.cell
+def _(Signal, cos_signal, np, plt):
+    def stage9():
+        ampls = [1, 1, 1]
+        freqs = [50, 150, 450]
+        signal, max_freq = cos_signal(ampls, freqs)
+        signal = Signal(signal, {"max-freq": max_freq})
+
+        duration = 1 / max_freq * 20
+        x, y = signal.make_signal(duration, 25)
+        signal.add_white_noise()
+
+        fft_freq, fft_spec = signal.get_fft_spec()
+
+        fig = plt.figure(constrained_layout=True, figsize=(30, 24))
+        axes = fig.subplot_mosaic(
+            [
+                ["A", "B"],
+                ["C", "D"],
+            ]
+        )
+
+        axes["A"].set_title("Signal")
+        for a, f in zip(ampls, freqs):
+            axes["A"].plot(
+                x,
+                cos_signal([a], [f])[0](x),
+                linewidth=1,
+                linestyle="--",
+                label=f"{f} Hz",
+            )
+        axes["A"].plot(x, y, color="blue", linewidth=2, label="cos signal")
+
+        axes["A"].set_xlabel("Time")
+        axes["A"].set_ylabel("Value")
+        axes["A"].grid(True, alpha=0.3)
+        axes["A"].legend()
+
+        axes["B"].set_title("fft")
+        mask = fft_freq <= int(max_freq * 1.2)
+        axes["B"].plot(fft_freq[mask], fft_spec[mask], label="fft spectrum")
+
+        for f in freqs:
+            axes["B"].axvline(
+                x=f, linestyle="--", color="r", linewidth=1, label=f"{f} Hz"
+            )
+
+        axes["B"].set_xlabel("Frequency")
+        axes["B"].set_ylabel("Amplitude")
+        axes["B"].grid(True, alpha=0.3)
+        axes["B"].legend()
+
+        low_filter_fft = signal.chebyshev_filter(60, 4, 0.5)
+        filtered_s = signal.apply_filter(low_filter_fft)
+
+        axes["C"].set_title("Signal")
+        axes["C"].plot(
+            x,
+            cos_signal([1], [50])[0](x),
+            linewidth=1,
+            linestyle="--",
+            label="50 Hz",
+        )
+        axes["C"].plot(
+            x, filtered_s, color="blue", linewidth=2, label="cos signal"
+        )
+
+        axes["C"].set_xlabel("Time")
+        axes["C"].set_ylabel("Value")
+        axes["C"].grid(True, alpha=0.3)
+        axes["C"].legend()
+
+        f_freq, f_fft = signal.get_fft_spec()
+        axes["D"].set_title("fft")
+        mask = f_freq <= int(max_freq * 2)
+        axes["D"].plot(f_freq[mask], f_fft[mask], label="fft spectrum")
+
+        axes["D"].axvline(
+            x=50, linestyle="--", color="r", linewidth=1, label="50 Hz"
+        )
+
+        axes["D"].set_title("Filter fft")
+        mask = (signal.freq <= int(max_freq * 2)) & (signal.freq >= 0)
+        axes["D"].plot(
+            signal.freq[mask], np.abs(low_filter_fft[mask]), color="orange"
+        )
+        axes["D"].set_xlabel("Frequency")
+        axes["D"].set_ylabel("Amplitude")
+        axes["D"].grid(True, alpha=0.3)
+        axes["D"].legend()
+
+        fig.tight_layout()
+
+        return fig
+
+
+    stage9()
     return
 
 

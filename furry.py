@@ -284,5 +284,32 @@ def _(np, plt, signal_func):
     return
 
 
+@app.cell
+def _(np, plt):
+    def make_polinom(n):
+        if n == 0:
+            return lambda x: np.ones_like(x)
+        elif n == 1:
+            return lambda x: x
+
+        def func(x):
+            T_prev2 = np.ones_like(x)
+            T_prev1 = x.copy()
+            for i in range(2, n + 1):
+                T_curr = 2 * x * T_prev1 - T_prev2
+                T_prev2, T_prev1 = T_prev1, T_curr
+
+            return T_prev1
+
+        return func
+
+
+    polinom = make_polinom(100)
+
+    X = np.linspace(-1.2, 1.2, 2000)
+    plt.plot(X, polinom(X))
+    return
+
+
 if __name__ == "__main__":
     app.run()
