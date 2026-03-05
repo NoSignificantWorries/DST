@@ -304,10 +304,27 @@ def _(np, plt):
         return func
 
 
-    polinom = make_polinom(100)
+    polinom = make_polinom(4)
 
-    X = np.linspace(-1.2, 1.2, 2000)
-    plt.plot(X, polinom(X))
+    fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(16, 16))
+
+    X1 = np.linspace(-1.2, 1.2, 2000)
+    axes[0][0].plot(X1, polinom(X1))
+    axes[0][1].plot(X1, polinom(X1) ** 2)
+
+
+    def eps(Rp):
+        return np.sqrt(10 ** (Rp / 10) - 1)
+
+
+    X2 = np.linspace(0, 10, 1000)
+    axes[1][0].plot(X2, eps(X2))
+    axes[1][1].plot(X2, eps(X2) ** 2)
+    return
+
+
+@app.cell
+def _():
     return
 
 

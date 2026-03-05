@@ -90,27 +90,43 @@ def _(np, signal):
 
         def batterwort_low_filter(self, n, fc):
             poles = []
-            for k in range(n):
-                if n % 2 == 0:
-                    angle = np.pi / n * (0.5 + k)
-                else:
-                    angle = np.pi * k / n
 
-                pole = np.exp(1j * angle)
-
-                poles.append(pole)
-                poles.append(1 / pole)
+            if n % 2 == 0:
+                start = int(np.ceil((n + 1) / 2))
+                for k in range(start, n + start):
+                    angle = np.pi / n * (k - 0.5)
+                    pole = np.exp(1j * angle)
+                    poles.append(pole)
+            else:
+                start = int(np.ceil(n / 2))
+                for k in range(start, start + n):
+                    angle = np.pi / n * k
+                    pole = np.exp(1j * angle)
+                    poles.append(pole)
 
             poles = np.array(poles, dtype=complex)
 
             H = np.ones_like(self.freq, dtype=complex)
 
             for i, f in enumerate(self.freq):
-                s = 1j * f / fc
+                s = 1j * (f / fc)
+                # gain = 1.0 / np.prod(-poles)
                 H[i] = 1.0 / np.prod(s - poles)
 
             self.low_filter = H
 
+            return self.low_filter
+
+        def batterwort_low_filter_normal(self, n, fc):
+            H = np.ones_like(self.freq, dtype=complex)
+
+            for i, f in enumerate(self.freq):
+                if f == 0:
+                    H[i] = 1.0
+                else:
+                    H[i] = 1.0 / (1 + (1j * f / fc) ** n)
+
+            self.low_filter = H
             return self.low_filter
 
         def batterwort_low_filter_2(self, fc):
@@ -640,7 +656,7 @@ def _(Signal, cos_signal, np, plt):
         axes["B"].grid(True, alpha=0.3)
         axes["B"].legend()
 
-        low_filter_fft = signal.batterwort_low_filter(4, 65)
+        low_filter_fft = signal.batterwort_low_filter(4, 70)
         filtered_s = signal.apply_filter(low_filter_fft)
 
         axes["C"].set_title("Signal")
@@ -739,7 +755,7 @@ def _(Signal, cos_signal, np, plt):
         axes["B"].grid(True, alpha=0.3)
         axes["B"].legend()
 
-        low_filter_fft = signal.batterwort_low_filter(5, 65)
+        low_filter_fft = signal.batterwort_low_filter(5, 70)
         filtered_s = signal.apply_filter(low_filter_fft)
 
         axes["C"].set_title("Signal")
