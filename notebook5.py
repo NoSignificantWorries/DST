@@ -109,6 +109,15 @@ def _(np):
             self.restore_signal()
             self.signal_f = None
 
+        def fft_filter(self, kernel_fft):
+            convolved = self.fft * kernel_fft
+            _, rev_fft = np.fft.fft(self.signal[::-1])
+            convolved_rev = rev_fft * kernel_fft
+            self.restore_signal()
+            rev_signal = np.fft.ifft(self.fft).real
+            self.signal = (self.signal + rev_signal) / 2
+            self.signal_f = None
+
     return (SignalProcessor,)
 
 
@@ -218,8 +227,12 @@ def _(np):
 
     def fft_convolution_transform(kernel_fft):
         def func(x_freq, y_fft):
+            y_fft_rev = y_fft[::-1]
+
             convolved = y_fft * kernel_fft
-            return x_freq, convolved
+            convolved_rev = y_fft_rev * kernel_fft
+
+            return x_freq, (convolved + convolved_rev) / 2
 
         return func
 
@@ -255,7 +268,7 @@ def _(
         P.A.plot(sig1.t, sig1.signal)
         P.format("A", "Signal", "Time", "Signal")
 
-        kx, ky = make_kernel(gauss(1.0), -2, 2, 5)
+        kx, ky = make_kernel(gauss(1.0), -2, 2, 10)
 
         P.C.plot(kx, ky)
         P.format("C", "Kernel", "X", "Y")
@@ -290,7 +303,7 @@ def _(
         P.B.plot(sig2.t, sig2.signal)
         P.format("B", "Signal", "Time", "Signal")
 
-        kx, ky = make_kernel(linear(-0.2, 1.0), 0, 5, 5)
+        kx, ky = make_kernel(linear(-0.2, 1.0), 0, 5, 10)
 
         P.D.plot(kx, ky)
         P.format("D", "Kernel", "X", "Y")
