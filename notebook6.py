@@ -9,8 +9,9 @@ def _():
     import numpy as np
     import matplotlib.pyplot as plt
     import librosa
+    import scipy
 
-    return librosa, np, plt
+    return librosa, np, plt, scipy
 
 
 @app.cell
@@ -537,20 +538,6 @@ def _(
     morlet_fcore,
     np,
 ):
-    def make_fm_signal_integral(A, freq_func, duration, srate, shift=0.0):
-        def func(t):
-            t_shifted = t - shift
-
-            instantaneous_freq = freq_func(t_shifted)
-
-            dt = t[1] - t[0] if len(t) > 1 else 1 / srate
-            phase = 2 * np.pi * np.cumsum(instantaneous_freq) * dt
-
-            return A * np.sin(phase)
-
-        return func
-
-
     def stage5():
         P = Plotter((32, 18), [["A", "B"], ["C", "D"]])
 
@@ -596,6 +583,98 @@ def _(
 
 
     stage5()
+    return
+
+
+@app.cell
+def _(
+    Plotter,
+    SignalProcessor,
+    haar_fcore,
+    mhat_fcore,
+    morlet_fcore,
+    np,
+    scipy,
+):
+    def make_fm_signal_integral(key_points, duration, srate):
+        points = np.array(key_points)
+        n_original = len(points)
+        N = int(duration * srate)
+
+        # x_original = np.linspace(0, 1, n_original)
+        # x_new = np.linspace(0, 1, N)
+
+        # freqmod = np.interp(x_new, x_original, points)
+
+        x_original = np.arange(len(points))
+        x_new = np.linspace(0, len(points) - 1, N)
+
+        f = scipy.interpolate.interp1d(x_original, points, kind="cubic")
+        result_cubic = f(x_new)
+
+        tck = scipy.interpolate.splrep(x_original, points, s=0)
+        freqmod = scipy.interpolate.splev(x_new, tck)
+
+        def func(t):
+
+            signal = np.sin(2 * np.pi * (t + np.cumsum(freqmod) / srate))
+
+            return signal
+
+        return freqmod, func
+
+
+    def stage5_2():
+        P = Plotter((32, 18), [["A", "B"], ["C", "D"], ["E", "F"]])
+
+        F = [10.0, 12.0, 14.0, 26.0, 26.0, 20.0, 20.0]
+        main_F = max(F)
+        dur = 6
+        resolution = 100
+        srate = main_F * resolution
+        freqmod, main_function = make_fm_signal_integral(F, dur, srate)
+
+        sig1 = SignalProcessor(main_function, main_F)
+        sig1.sample(-3, dur, resolution)
+        # sig1.add_white_noise(0.2)
+        sig1.make_fft_spec()
+        sig_freq, sig_fft = sig1.get_half_fft_spec(2)
+
+        frex = np.linspace(1, 35, 500)
+
+        P.A.plot(sig1.t, sig1.signal, linewidth=2)
+        P.format("A", "Signal", "Time", "Ampl")
+        P.B.plot(np.linspace(-3, 3, len(freqmod)), freqmod)
+        P.format("B", "Freqmod", "Time", "Freq")
+        P.C.plot(sig_freq, sig_fft)
+        P.format("C", "Signal fft", "Freq", "Ampl")
+
+        fmorlets = []
+        fmhats = []
+        fhaars = []
+        for fc in frex:
+            fmorlets.append(morlet_fcore(0.1, fc))
+            fmhats.append(mhat_fcore(0.1, fc))
+            fhaars.append(haar_fcore(0.5 / fc))
+
+        sig2_1 = sig1.copy()
+        morlet_spec = sig2_1.make_spectrum(fmorlets)
+        sig2_2 = sig1.copy()
+        mhat_spec = sig2_2.make_spectrum(fmhats)
+        sig2_3 = sig1.copy()
+        haar_spec = sig2_3.make_spectrum(fhaars)
+
+        P.D.contourf(sig1.t, frex, morlet_spec, cmap="inferno")
+        P.format("D", "Morlet wavelet", "Time", "Freq")
+        P.E.contourf(sig1.t, frex, mhat_spec, cmap="inferno")
+        P.format("E", "MHAT wavelet", "Time", "Freq")
+        P.F.contourf(sig1.t, frex, haar_spec, cmap="inferno")
+        P.format("F", "Haar wavelet", "Time", "Freq")
+
+        return P.get_fig()
+
+
+    stage5_2()
     return
 
 
