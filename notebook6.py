@@ -213,27 +213,6 @@ def _(np):
 
 
 @app.cell
-def _(np):
-    def convolution_transform_np(kernel):
-        def func(x, y):
-            convolved = np.convolve(y, kernel, mode="same")
-            return x, convolved
-
-        return func
-
-
-    def fft_convolution_transform(kernel_fft):
-        def func(x_freq, y_fft):
-            convolved = y_fft * kernel_fft
-
-            return x_freq, convolved
-
-        return func
-
-    return
-
-
-@app.cell
 def _(Plotter, SignalProcessor, np):
     def morlet_core(alpha, f_0):
         w_0 = 2 * np.pi * f_0
@@ -600,11 +579,6 @@ def _(
         points = np.array(key_points)
         n_original = len(points)
         N = int(duration * srate)
-
-        # x_original = np.linspace(0, 1, n_original)
-        # x_new = np.linspace(0, 1, N)
-
-        # freqmod = np.interp(x_new, x_original, points)
 
         x_original = np.arange(len(points))
         x_new = np.linspace(0, len(points) - 1, N)
