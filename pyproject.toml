@@ -6,10 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "librosa>=0.11.0",
-    "marimo>=0.19.9",
+    "marimo>=0.20.2",
     "matplotlib>=3.10.8",
     "numpy>=2.4.2",
     "pandas>=3.0.1",
+    "pyzmq>=27.1.0",
     "ruff>=0.15.1",
     "scipy>=1.17.0",
     "skipy>=0.2.6",

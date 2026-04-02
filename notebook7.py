@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.19.9"
+__generated_with = "0.21.1"
 app = marimo.App(width="full", auto_download=["html"])
 
 
@@ -691,7 +691,7 @@ def _(Plotter, SignalProcessor, np, scipy):
         P.E3.plot(res_freq, res_fft)
         P.format("E3", "Residual Ampl spectrum", "Freq", "Ampl")
 
-        frex = np.linspace(0.01, 1, 100)
+        frex = np.linspace(0.1, 1, 100)
 
         fmorlets = []
         for fc in frex:

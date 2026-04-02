@@ -8,4 +8,6 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
+.vscode/
+.qodo/
