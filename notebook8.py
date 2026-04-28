@@ -316,7 +316,7 @@ def _(Plotter, SignalProcessor, make_picks_signal, np):
         )
         E = sig.signal.mean()
         S = sig.signal.std()
-        s3 = 1.0 * S
+        s3 = 3.0 * S
         P.A.axhline(y=sig.signal.mean(), color="red", linestyle="--", label="Mean")
         P.A.fill_between(t, E - s3, E + s3, alpha=0.3, color="gray")
         P.format("A", "Signal", "Time", "Value")
@@ -456,16 +456,16 @@ def _(MASK, Plotter, S, S1, np, scipy):
         right = signal[p2 + 1 : p2 + 1 + k1].copy()
         n0 = estimate_n0(left, right)
 
-        # sos = scipy.signal.butter(10, 0.3, btype="low", fs=srate, output="sos")
+        sos = scipy.signal.butter(10, 0.2, btype="low", fs=srate, output="sos")
 
-        # left_filt = scipy.signal.sosfiltfilt(sos, left)
-        # right_filt = scipy.signal.sosfiltfilt(sos, right)
+        left_filt = scipy.signal.sosfiltfilt(sos, left)
+        right_filt = scipy.signal.sosfiltfilt(sos, right)
 
         freq = np.fft.fftfreq(k1, 1 / srate)
-        # f1 = np.fft.fft(left_filt)
-        # f2 = np.fft.fft(right_filt)
-        f1 = np.fft.fft(left)
-        f2 = np.fft.fft(right)
+        f1 = np.fft.fft(left_filt)
+        f2 = np.fft.fft(right_filt)
+        # f1 = np.fft.fft(left)
+        # f2 = np.fft.fft(right)
 
         m = np.arange(k1)
 
