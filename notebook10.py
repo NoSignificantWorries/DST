@@ -14,12 +14,10 @@ def _():
     import scipy.io as sio
     from scipy.interpolate import griddata
     from matplotlib import patches
-
-    # Для БПФ
     from numpy.fft import fft, fftfreq
 
     np.random.seed(42)
-    return FastICA, griddata, np, patches, plt, scipy
+    return FastICA, fft, fftfreq, griddata, np, patches, plt, scipy, sio
 
 
 @app.function
@@ -680,23 +678,14 @@ def _(griddata, np, patches, plt):
 
 
 @app.cell
-def _(topoplotIndie):
+def _(fft, fftfreq, np, plt, scipy, sio, topoplotIndie):
     def stage4():
-        import numpy as np
-        import matplotlib.pyplot as plt
-        import scipy.linalg
-        import scipy.io as sio
-        from numpy.fft import fft, fftfreq
-
-        np.random.seed(42)
-
-        # ============ Загрузка данных ============
         MATFILE_NAME = "emptyEEG.mat"
         matfile = sio.loadmat(MATFILE_NAME)
         lf = matfile["lf"][0, 0]
         EEG = matfile["EEG"][0, 0]
 
-        Gain_all = lf["Gain"]  # (каналы, 3 ориентации, диполи)
+        Gain_all = lf["Gain"]
         n_chan, n_orient, n_dip = Gain_all.shape
 
         srate = 500
@@ -718,49 +707,47 @@ def _(topoplotIndie):
         n_pst = n_pnts - tidx
         t_post = times[tidx:]
 
-        print(f"Каналов: {n_chan}, Ориентаций: {n_orient}, Диполей: {n_dip}")
-        print(f"Пре-стимул: {n_pre} отсчётов, Пост-стимул: {n_pst} отсчётов")
+        print(f"Channels: {n_chan}, Orientations: {n_orient}, Dipoles: {n_dip}")
 
-        # ============ Генерация данных ============
+        # ============ Dipole orientations ============
+        orient1 = np.array([1.0, 0.5, 0.3])
+        orient1 = orient1 / np.linalg.norm(orient1)
+        orient2 = np.array([0.2, 1.0, 0.4])
+        orient2 = orient2 / np.linalg.norm(orient2)
+
+        true_topo_dip1 = np.zeros(n_chan)
+        true_topo_dip2 = np.zeros(n_chan)
+        for o in range(3):
+            true_topo_dip1 += Gain_all[:, o, DIPOLE_LOC1] * orient1[o]
+            true_topo_dip2 += Gain_all[:, o, DIPOLE_LOC2] * orient2[o]
+
+        # ============ Data generation ============
         EEG_data = np.zeros((n_chan, n_pnts, n_trials))
-        true_dip1 = np.zeros((n_trials, n_pnts))  # полный временной ряд
-        true_dip2 = np.zeros((n_trials, n_pnts))  # полный временной ряд
+        true_dip1 = np.zeros((n_trials, n_pnts))
+        true_dip2 = np.zeros((n_trials, n_pnts))
 
         for trial in range(n_trials):
             phase1 = np.random.uniform(0, 2 * np.pi)
             phase2 = np.random.uniform(0, 2 * np.pi)
 
-            # Активность диполей: все 3 ориентации
             dipole_activity = np.zeros((3, n_dip, n_pnts))
 
-            # Ориентации диполей
-            orient1 = np.array([1.0, 0.5, 0.3])
-            orient1 = orient1 / np.linalg.norm(orient1)
-            orient2 = np.array([0.2, 1.0, 0.4])
-            orient2 = orient2 / np.linalg.norm(orient2)
-
-            # Сигналы только в пост-стимуле (500 точек)
             signal1 = AMP1 * np.sin(2 * np.pi * FREQ1 * t_post + phase1)
             signal2 = AMP2 * np.sin(2 * np.pi * FREQ2 * t_post + phase2)
 
-            # Заполняем активность диполей (пост-стимул)
             for o in range(3):
                 dipole_activity[o, DIPOLE_LOC1, tidx:] = orient1[o] * signal1
                 dipole_activity[o, DIPOLE_LOC2, tidx:] = orient2[o] * signal2
 
-            # Сохраняем истинные сигналы (пре-стимул = 0)
             true_dip1[trial, tidx:] = signal1
             true_dip2[trial, tidx:] = signal2
 
-            # Проекция: суммируем по ориентациям
             scalp_clean = np.zeros((n_chan, n_pnts))
             for o in range(3):
                 scalp_clean += Gain_all[:, o, :] @ dipole_activity[o]
 
             noise = np.random.randn(n_chan, n_pnts) * NOISE_LEVEL
             EEG_data[:, :, trial] = scalp_clean + noise
-
-        print(f"Форма EEG_data: {EEG_data.shape}")
 
         # ============ GED ============
         EEG_centered = EEG_data - EEG_data.mean(axis=1, keepdims=True)
@@ -771,15 +758,11 @@ def _(topoplotIndie):
         for trial in range(n_trials):
             pre_data = EEG_centered[:, :tidx, trial]
             C_noise += (pre_data @ pre_data.T) / n_pre
-
             pst_data = EEG_centered[:, tidx:, trial]
             C_signal += (pst_data @ pst_data.T) / n_pst
 
         C_signal /= n_trials
         C_noise /= n_trials
-
-        print(f"След C_signal: {np.trace(C_signal):.4f}")
-        print(f"След C_noise: {np.trace(C_noise):.4f}")
 
         reg = 1e-8 * np.trace(C_noise) / n_chan
         C_noise_reg = C_noise + reg * np.eye(n_chan)
@@ -788,16 +771,12 @@ def _(topoplotIndie):
         evals = evals[::-1]
         evecs = evecs[:, ::-1]
 
-        print("\nGED eigenvalues (первые 10):")
-        for i in range(10):
-            print(f"  GED{i + 1}: λ = {evals[i]:.4f}")
-
-        # Проекция
+        # Projection
         components_ged = np.zeros((n_chan, n_pnts, n_trials))
         for trial in range(n_trials):
             components_ged[:, :, trial] = evecs.T @ EEG_centered[:, :, trial]
 
-        # Форвард-модели
+        # Forward model
         C_signal_diff = C_signal - C_noise
 
         def compute_forward(w, C_sig_diff, C_noise_reg):
@@ -812,20 +791,11 @@ def _(topoplotIndie):
             forward_models.append(fm)
         forward_models = np.array(forward_models)
 
-        # ============ Анализ ============
+        # ============ Analisys ============
         ged_erp = components_ged.mean(axis=2)
         true_dip1_erp = true_dip1.mean(axis=0)
         true_dip2_erp = true_dip2.mean(axis=0)
 
-        # Корреляции
-        print("\nКорреляции GED с диполями (пост-стимул):")
-        for i in range(2):
-            corr1 = np.corrcoef(ged_erp[i, tidx:], true_dip1_erp[tidx:])[0, 1]
-            corr2 = np.corrcoef(ged_erp[i, tidx:], true_dip2_erp[tidx:])[0, 1]
-            print(f"  GED{i + 1} vs Dip1 (15 Гц): {corr1:.4f}")
-            print(f"  GED{i + 1} vs Dip2 (10 Гц): {corr2:.4f}")
-
-        # Определяем соответствие
         corr_1v1 = np.abs(
             np.corrcoef(ged_erp[0, tidx:], true_dip1_erp[tidx:])[0, 1]
         )
@@ -840,54 +810,112 @@ def _(topoplotIndie):
             ged1_dip = 2
             ged2_dip = 1
 
+        true_topo_for_ged1 = [true_topo_dip1, true_topo_dip2][ged1_dip - 1]
+        true_topo_for_ged2 = [true_topo_dip1, true_topo_dip2][ged2_dip - 1]
+        true_erp_for_ged1 = [true_dip1_erp, true_dip2_erp][ged1_dip - 1]
+        true_erp_for_ged2 = [true_dip1_erp, true_dip2_erp][ged2_dip - 1]
+
+        def align_sign(fwd_model, true_topo, ged_temporal, true_temporal):
+            if np.corrcoef(fwd_model, true_topo)[0, 1] < 0:
+                fwd_model = -fwd_model
+                ged_temporal = -ged_temporal
+
+            if np.corrcoef(ged_temporal, true_temporal)[0, 1] < 0:
+                fwd_model = -fwd_model
+                ged_temporal = -ged_temporal
+
+            return fwd_model, ged_temporal
+
+        # ПSign alignment
+        fm1_aligned, ged1_aligned = align_sign(
+            forward_models[0].copy(),
+            true_topo_for_ged1,
+            ged_erp[0].copy(),
+            true_erp_for_ged1,
+        )
+        fm2_aligned, ged2_aligned = align_sign(
+            forward_models[1].copy(),
+            true_topo_for_ged2,
+            ged_erp[1].copy(),
+            true_erp_for_ged2,
+        )
+
+        # Correlations
         corr1_final = np.abs(
-            np.corrcoef(
-                ged_erp[0, tidx:],
-                [true_dip1_erp, true_dip2_erp][ged1_dip - 1][tidx:],
-            )[0, 1]
+            np.corrcoef(ged1_aligned[tidx:], true_erp_for_ged1[tidx:])[0, 1]
         )
         corr2_final = np.abs(
-            np.corrcoef(
-                ged_erp[1, tidx:],
-                [true_dip1_erp, true_dip2_erp][ged2_dip - 1][tidx:],
-            )[0, 1]
+            np.corrcoef(ged2_aligned[tidx:], true_erp_for_ged2[tidx:])[0, 1]
         )
+        topo_corr1 = np.corrcoef(fm1_aligned, true_topo_for_ged1)[0, 1]
+        topo_corr2 = np.corrcoef(fm2_aligned, true_topo_for_ged2)[0, 1]
 
         dip_freqs = [0, 15, 10]
-        print(
-            f"\nИтог: GED1 → Диполь {ged1_dip} ({dip_freqs[ged1_dip]} Гц), corr = {corr1_final:.4f}"
-        )
-        print(
-            f"       GED2 → Диполь {ged2_dip} ({dip_freqs[ged2_dip]} Гц), corr = {corr2_final:.4f}"
+        print(f"\nSummary:")
+        print(f"  GED1 → Dipole {ged1_dip} ({dip_freqs[ged1_dip]} Hz)")
+        print(f"    Temporal corr: {corr1_final:.4f}")
+        print(f"    Topography corr: {topo_corr1:.4f}")
+        print(f"  GED2 → Dipole {ged2_dip} ({dip_freqs[ged2_dip]} Hz)")
+        print(f"    Temporal corr: {corr2_final:.4f}")
+        print(f"    Topography corr: {topo_corr2:.4f}")
+
+        # ============ Visualization ============
+        fig, axes = plt.subplot_mosaic(
+            [
+                ["dip1", "dip2", "signal1", "signal1", "signal1"],
+                ["dip1", "dip2", "signal2", "signal2", "signal2"],
+                ["GED1", "GED2", "spec1", "spec2", "vals"],
+                ["GED1", "GED2", "spec1", "spec2", "vals"],
+            ],
+            figsize=(26, 14),
+            width_ratios=[1, 1, 1, 1, 1],
         )
 
-        # ============ Визуализация ============
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-
-        # Топографии
-        for i, (ax, idx) in enumerate(zip([axes[0, 0], axes[0, 1]], [0, 1])):
-            dip_num = [ged1_dip, ged2_dip][i]
+        # True topography
+        for i, (ax, topo, dip_num, freq) in enumerate(
+            zip(
+                [axes["dip1"], axes["dip2"]],
+                [true_topo_dip1, true_topo_dip2],
+                [1, 2],
+                [15, 10],
+            )
+        ):
             topoplotIndie(
-                forward_models[idx],
+                topo,
                 EEG["chanlocs"],
                 ax=ax,
-                title=f"GED{idx + 1} (Dipole {dip_num}, {dip_freqs[dip_num]} Hz)",
+                title=f"True Dipole {dip_num} ({freq} Hz)",
             )
 
-        # Собственные значения
-        ax = axes[0, 2]
+        # GED topography
+        for i, (ax, topo, dip_num) in enumerate(
+            zip(
+                [axes["GED1"], axes["GED2"]],
+                [fm1_aligned, fm2_aligned],
+                [ged1_dip, ged2_dip],
+            )
+        ):
+            topoplotIndie(
+                topo,
+                EEG["chanlocs"],
+                ax=ax,
+                title=f"GED{i + 1} → Dipole {dip_num}\n(topo corr: {[topo_corr1, topo_corr2][i]:.3f})",
+            )
+
+        # Eigenvalues
+        ax = axes["vals"]
         colors_ev = ["steelblue" if i < 2 else "lightgray" for i in range(10)]
-        ax.bar(range(1, 11), evals[:10], color=colors_ev, alpha=0.8)
-        ax.axhline(1, color="r", linestyle="--", label="λ=1 (noise)")
-        ax.set_xlabel("Component")
-        ax.set_ylabel("λ")
-        ax.set_title("GED Eigenvalues")
+        ax.plot(
+            range(1, 11), evals[:10] / np.max(evals[:10]), color="k", marker="o"
+        )
+        ax.axhline(0.1, color="r", linestyle="--", label="λ=1 (noise)")
+        ax.set_xlabel("Components")
+        ax.set_ylabel("Normilized energy")
+        ax.set_title("GED Eigenvalues energy")
         ax.legend()
         ax.grid(alpha=0.3)
 
-        # Временные ряды
-        ax = axes[1, 0]
-
+        # Signals
         def norm_signal(sig, ref):
             s = sig.copy()
             if np.corrcoef(s, ref)[0, 1] < 0:
@@ -896,12 +924,10 @@ def _(topoplotIndie):
                 s = s / np.max(np.abs(s)) * np.max(np.abs(ref))
             return s
 
-        ref1 = [true_dip1_erp, true_dip2_erp][ged1_dip - 1]
-        ref2 = [true_dip1_erp, true_dip2_erp][ged2_dip - 1]
+        t1_norm = norm_signal(ged1_aligned, true_erp_for_ged1)
+        t2_norm = norm_signal(ged2_aligned, true_erp_for_ged2)
 
-        t1_norm = norm_signal(ged_erp[0], ref1)
-        t2_norm = norm_signal(ged_erp[1], ref2)
-
+        ax = axes["signal1"]
         ax.plot(
             times,
             true_dip1_erp,
@@ -912,19 +938,27 @@ def _(topoplotIndie):
         )
         ax.plot(
             times,
-            true_dip2_erp,
-            "royalblue",
-            label="Dipole 2 (10 Hz)",
-            lw=2,
-            alpha=0.7,
-        )
-        ax.plot(
-            times,
             t1_norm,
             "darkred",
             linestyle="--",
             label=f"GED1 (Dipole {ged1_dip})",
             lw=2,
+        )
+        ax.axvline(x=times[tidx], color="k", linestyle=":", alpha=0.5)
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Amplitude")
+        ax.set_title("Averaged Temporal Components")
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.3)
+
+        ax = axes["signal2"]
+        ax.plot(
+            times,
+            true_dip2_erp,
+            "royalblue",
+            label="Dipole 2 (10 Hz)",
+            lw=2,
+            alpha=0.7,
         )
         ax.plot(
             times,
@@ -941,7 +975,7 @@ def _(topoplotIndie):
         ax.legend(fontsize=8)
         ax.grid(alpha=0.3)
 
-        # Спектры
+        # Spectrum
         def compute_spectrum(signal):
             n = len(signal)
             fft_vals = fft(signal)
@@ -949,16 +983,20 @@ def _(topoplotIndie):
             freqs = fftfreq(n, 1 / srate)[: n // 2]
             return freqs, power / np.max(power)
 
-        for i, (ax, ged_idx, dip_idx) in enumerate(
-            zip([axes[1, 1], axes[1, 2]], [0, 1], [ged1_dip, ged2_dip])
+        for i, (ax, ged_temporal, dip_idx) in enumerate(
+            zip(
+                [axes["spec1"], axes["spec2"]],
+                [ged1_aligned, ged2_aligned],
+                [ged1_dip, ged2_dip],
+            )
         ):
-            freqs, spec_ged = compute_spectrum(ged_erp[ged_idx, tidx:])
+            freqs, spec_ged = compute_spectrum(ged_temporal[tidx:])
             _, spec_dip = compute_spectrum(
                 [true_dip1_erp, true_dip2_erp][dip_idx - 1][tidx:]
             )
 
             dip_freq = dip_freqs[dip_idx]
-            other_freq = dip_freqs[3 - dip_idx]  # 15 если dip=10, 10 если dip=15
+            other_freq = dip_freqs[3 - dip_idx]
 
             ax.plot(
                 freqs,
@@ -971,9 +1009,9 @@ def _(topoplotIndie):
             ax.plot(
                 freqs,
                 spec_ged,
-                "darkred" if ged_idx == 0 else "darkgreen",
+                "darkred" if i == 0 else "darkgreen",
                 linestyle="--",
-                label=f"GED{ged_idx + 1}",
+                label=f"GED{i + 1}",
                 lw=2,
             )
             ax.axvline(
@@ -987,19 +1025,11 @@ def _(topoplotIndie):
             ax.set_xlim(0, 30)
             ax.set_xlabel("Frequency (Hz)")
             ax.set_ylabel("Normalized Power")
-            ax.set_title(f"Spectrum: GED{ged_idx + 1} (Dipole {dip_idx})")
+            ax.set_title(f"Spectrum: GED{i + 1} (Dipole {dip_idx})")
             ax.legend(fontsize=8)
             ax.grid(alpha=0.3)
 
-        plt.tight_layout()
-
-        print(f"\n{'=' * 50}")
-        print(f"РЕЗУЛЬТАТЫ:")
-        print(f"  GED1 → Диполь {ged1_dip}: корреляция = {corr1_final:.4f}")
-        print(f"  GED2 → Диполь {ged2_dip}: корреляция = {corr2_final:.4f}")
-        print(f"  Биполярный паттерн на топографии — норма для ЭЭГ")
-        print(f"  (один диполь создаёт пару +/− на скальпе)")
-
+        fig.tight_layout()
         return fig
 
 
