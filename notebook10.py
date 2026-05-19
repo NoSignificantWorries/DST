@@ -171,13 +171,14 @@ def _(np, plt):
         ax.legend()
 
         ax = axes["C"]
+        TIME_AXIS = TIME_AXIS[:200]
         ax.axhline(y=NOISE_LEVEL, color="gray", linestyle="--", alpha=0.8)
         ax.axhline(y=-NOISE_LEVEL, color="gray", linestyle="--", alpha=0.8)
-        ax.plot(TIME_AXIS, temporal_1, "g", label="PC1")
-        ax.plot(TIME_AXIS, t1, "orange", linestyle="--", label="Origin 1")
-        ax.plot(TIME_AXIS, temporal_2, "r", label="PC2")
-        ax.plot(TIME_AXIS, t2, "b--", label="Origin 2")
-        ax.plot(TIME_AXIS, t3, "k", label="Noise")
+        ax.plot(TIME_AXIS, temporal_1[:200], "g", label="PC1")
+        ax.plot(TIME_AXIS, t1[:200], "orange", linestyle="--", label="Origin 1")
+        ax.plot(TIME_AXIS, temporal_2[:200], "r", label="PC2")
+        ax.plot(TIME_AXIS, t2[:200], "b--", label="Origin 2")
+        ax.plot(TIME_AXIS, t3[:200], "k", label="Noise")
         ax.set_xlabel("Time")
         ax.set_ylabel("Ampl")
         ax.set_title("Signal")
@@ -196,7 +197,7 @@ def _(np, plt):
 def _(np, plt, scipy):
     def stage2():
         N_CHANNELS = 10
-        N_TIMEPOINTS = 500
+        N_TIMEPOINTS = 200
         TIME_AXIS = np.arange(N_TIMEPOINTS)
         AMP_1, FREQ_1 = 2.0, 0.05
         AMP_2, FREQ_2 = 1.0, 0.10
@@ -378,7 +379,7 @@ def _(np, plt, scipy):
 def _(FastICA, np, plt):
     def stage3():
         N_CHANNELS = 10
-        N_TIMEPOINTS = 500
+        N_TIMEPOINTS = 200
         TIME_AXIS = np.arange(N_TIMEPOINTS)
         AMP_1, FREQ_1 = 2.0, 0.05
         AMP_2, FREQ_2 = 1.0, 0.10
